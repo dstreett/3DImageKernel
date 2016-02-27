@@ -1,3 +1,9 @@
+/*When dealing with 3D scans of images
+ * a 3D kernel to enhance images is probably a better
+ * idea. That way a z axis of data is added instead
+ * of local neighborhood data in x and y*/
+
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -9,6 +15,8 @@
 
 using namespace cv;
 
+
+/*Define kernel*/
 const int kWidth = 3;
 const int kHeight = 3;
 const int kDepth = 3;
@@ -25,28 +33,7 @@ double arr[kWidth][kHeight][kDepth] = { -1, -2, -1,
 
 
 
-/*const int kWidth = 5;
-const int kHeight = 5;
-const int kDepth = 5;
-
-double arr[kWidth][kHeight][kDepth] = {3, -3, -3, -3, 3,
-			               -3, 1,  -1, 1, -3,
-			               -3, -1,  15,  -1, -3,
-				       -3, 1,  -1, 1, -3,
-				       3, -3, -3, -3, 3,
-								1, -1, -1, -1, 1,
-					 			-1, 3,  -1, 3, -1,
-								-1, -1, 70, -1, -1
-					 			-1, 3,  -1,  3, -1,
-								1, -1, -1, -1, 1,
-				       -3, -3, -3, -3, -3,
-			               -3, 1,  -1, 1, -3,
-			               -3,  -1,  15,  -1, -3,
-				       -3, 1,  -1, 1, -3,
-				       -3, -3, -3, -3, -3};
-					
-*/					
-
+/*Uses x, y, z (dist, width, height) to enhance image*/
 Mat *filteredImage(Mat image[], int count) {
 	
  	//Mat new_image = Mat::zeros( src.size(), src.type() );
@@ -62,6 +49,8 @@ Mat *filteredImage(Mat image[], int count) {
 		}
 	}
 
+
+    /*Normalized the curve*/
 	for (int z = kDepth; z < count-kDepth; z++ ) {
 		newImage[z-kDepth] = Mat::zeros(image[z].size(), image[z].type());
  		for (int y = kHeight; y < image[z].rows-kHeight; y++ ) {
@@ -84,6 +73,7 @@ Mat *filteredImage(Mat image[], int count) {
 							}
 						}
 					
+                        /*thresehold of pixel value to consider on*/
 						if (tmpValue < 150) {
 							newImage[z-kDepth].at<unsigned char>(Point(x,y)) = 0;
 						} else if (tmpValue > 255) {
@@ -103,14 +93,17 @@ Mat *filteredImage(Mat image[], int count) {
 
 struct files {
 	char **f;
+	char **fOut;
 	int count;
 };
 
+/*Collects files in the correct z direction*/
 void funFiles(char *charDir, struct files *f) {
 
 	DIR *dir;
 	struct dirent *ent;
 	f->f = (char **)malloc(0);
+	f->fOut = (char **)malloc(0);
 	f->count = 0;
 	int i = 1;
 	char tmpC[1000];
@@ -120,8 +113,14 @@ void funFiles(char *charDir, struct files *f) {
   		while ((ent = readdir (dir)) != NULL) {
 			if (strstr(ent->d_name, ".tif")) {
 				f->f = (char **)realloc(f->f, sizeof(char *)*i);
+				f->fOut = (char **)realloc(f->fOut, sizeof(char *)*i);
+
 				sprintf(tmpC, "%s%s", charDir, ent->d_name);
 				f->f[i-1]=strdup(tmpC);
+
+				sprintf(tmpC, "%s", ent->d_name);
+				f->fOut[i-1]=strdup(tmpC);
+				
 				i++;
 				f->count++;
 			}
@@ -148,43 +147,26 @@ int main( int argc, char** argv ) {
 				if (value > 525) {
 					image[i].at<unsigned char>(Point(x,y))=0;	
 				}
-				if (image[i].at<unsigned char>(Point(x,y)) < 15) {
+				if (image[i].at<unsigned char>(Point(x,y)) < 25) {
 					image[i].at<unsigned char>(Point(x,y))=0;	
 				}	
 			}
 		}
 	}
 	
+    /*Shows the image*/
 	namedWindow("Testing",1);
-
+	namedWindow("Original", 1);
 	Mat *new_image = filteredImage(image, allFiles->count);
 	
-	/*
-	for (int one = -5; one < 5; one++) {
-		for (int two = -5; two < 5; two++) {
-			for (int three = 0; three < 100; three++) {
-				double a[kWidth][kHeight] = {one, two, one,
-				    			     two, three, two,
-				     			     one, two, one};
-				
-							Mat newImage = filteredImage(image, a);
-							char c[1000];
-							int tmp = sprintf(c, "corners%dperp%dmiddle%d.tif", one, two, three);
-							imwrite(c, newImage);
-			}
-		}
-	}
-	*/
-	printf("Got here\n");
 	Size size(700, 700);
 	int i = 0;
-	for(;;) {
-		resize(new_image[i], new_image[i], size);
+	for(int i = 0; i < allFiles->count-kDepth/2;i++) {
 		imshow("Testing", new_image[i]);
-		i = (i+1)%(allFiles->count-kDepth*2);
+		imshow("Original", image[i]);
+		imwrite(allFiles->fOut[i], new_image[i]);
 		if(waitKey(1) >= 0) break;
 	}
-	//imshow("New Image", newImage);	
-//	imshow("Source", image);	
+
  	return 0;
 }
